@@ -37,15 +37,40 @@ params:
   showtoc: true
   tocopen: false
   
-
   # home-info mode
   homeInfoParams:
     Title: "Research And Development From Area 51"
       Content: "A place for all my niche research"
+
   socialIcons:
     - name: "Github"
       url: "https://github.com/Danking555"
     - name: "Linkedin"
+      url: "https://www.linkedin.com/in/danieldavidov/"
+
+menu:
+  main:
+    - identifier: posts
+      name: Posts
+      url: posts/
+
+outputs:
+  home:
+    - HTML
+    - RSS
+    - JSON
+
+
+  
+  # home-info mode
+  homeInfoParams:
+    Title: "Research And Development From Area 51"
+    Content: "A place for all my niche research"
+
+  socialIcons:
+    - name: Github
+      url: "https://github.com/Danking555"
+    - name: Linkedin
       url: "https://www.linkedin.com/in/danieldavidov/"
 
 menu:
