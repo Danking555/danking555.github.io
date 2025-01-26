@@ -14,14 +14,16 @@
       <pubDate>Sun, 26 Jan 2025 00:00:00 +0000</pubDate>
       <guid>http://localhost:1313/posts/making-volatility-15x-faster-lessons-from-reverse-engineering-windows-internals/</guid>
       <description>&lt;h2 id=&#34;quick-tldr&#34;&gt;Quick TL;DR&lt;/h2&gt;
-&lt;p&gt;By locating the kernel base address from &lt;code&gt;PROCESSOR_START_BLOCK&lt;/code&gt; rather than scanning for &lt;code&gt;KDBG&lt;/code&gt;, I reduced Volatility&amp;rsquo;s analysis time from &lt;strong&gt;~15 seconds to about a second&lt;/strong&gt; on a 32GB RAM sample.&lt;/p&gt;
+&lt;p&gt;By locating the kernel base address from &lt;code&gt;PROCESSOR_START_BLOCK&lt;/code&gt; rather than scanning for &lt;code&gt;KDBG&lt;/code&gt;, I reduced Volatility&amp;rsquo;s analysis time from &lt;strong&gt;~15 seconds to about a second&lt;/strong&gt; on a 32GB RAM sample.&lt;br&gt;
+&lt;a href=&#34;https://github.com/volatilityfoundation/volatility3/pull/1566&#34;&gt;See the code that was merged into Volatility&lt;/a&gt;.&lt;/p&gt;
 &lt;p&gt;Important: This method works only on x64 systems with no virtualization. Otherwise, we gracefully fall back to &lt;code&gt;KDBG&lt;/code&gt; scanning.&lt;/p&gt;
 &lt;h2 id=&#34;introduction-and-summary&#34;&gt;Introduction and summary&lt;/h2&gt;
 &lt;p&gt;Volatility and Memprocfs are two tools for Memory Forensics, but they&amp;rsquo;re implemented differently.
 I noticed that Memprocfs parses the RAM file almost instantaneously while Volatility takes longer to analyse the file.
 So, I&amp;rsquo;ve conducted a test:&lt;/p&gt;</description>
       <content:encoded><![CDATA[<h2 id="quick-tldr">Quick TL;DR</h2>
-<p>By locating the kernel base address from <code>PROCESSOR_START_BLOCK</code> rather than scanning for <code>KDBG</code>, I reduced Volatility&rsquo;s analysis time from <strong>~15 seconds to about a second</strong> on a 32GB RAM sample.</p>
+<p>By locating the kernel base address from <code>PROCESSOR_START_BLOCK</code> rather than scanning for <code>KDBG</code>, I reduced Volatility&rsquo;s analysis time from <strong>~15 seconds to about a second</strong> on a 32GB RAM sample.<br>
+<a href="https://github.com/volatilityfoundation/volatility3/pull/1566">See the code that was merged into Volatility</a>.</p>
 <p>Important: This method works only on x64 systems with no virtualization. Otherwise, we gracefully fall back to <code>KDBG</code> scanning.</p>
 <h2 id="introduction-and-summary">Introduction and summary</h2>
 <p>Volatility and Memprocfs are two tools for Memory Forensics, but they&rsquo;re implemented differently.

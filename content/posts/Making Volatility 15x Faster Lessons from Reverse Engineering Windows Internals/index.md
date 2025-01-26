@@ -6,7 +6,8 @@ draft: false
 ---
 
 ## Quick TL;DR
-By locating the kernel base address from ```PROCESSOR_START_BLOCK``` rather than scanning for ```KDBG```, I reduced Volatility's analysis time from **~15 seconds to about a second** on a 32GB RAM sample.
+By locating the kernel base address from ```PROCESSOR_START_BLOCK``` rather than scanning for ```KDBG```, I reduced Volatility's analysis time from **~15 seconds to about a second** on a 32GB RAM sample.\
+[See the code that was merged into Volatility][0].
 
 Important: This method works only on x64 systems with no virtualization. Otherwise, we gracefully fall back to ```KDBG``` scanning.
 ## Introduction and summary
