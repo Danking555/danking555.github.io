@@ -111,7 +111,7 @@ We should find the kernel base address and pass it to <code>check_kernel_offset<
 We are ready to deep dive into how Memprocfs extracts the kernel base offset.</p>
 <h3 id="memprocfs-reverse-engineering">Memprocfs Reverse Engineering</h3>
 <p>Before we list the operations that Memprocfs does to find the relevant data about the kernel, let&rsquo;s explain some theory.
-Memprocfs relies on &ldquo;the most undocumented structure&rdquo; that Alex Ionescu says ([in his talk][3]) that he has seen his entire reverse engineering life - the <code>Low Stub</code>.
+Memprocfs relies on &ldquo;the most undocumented structure&rdquo; that Alex Ionescu says (<a href="https://www.youtube.com/watch?v=_ShCSth6dWM">in his talk</a>) that he has seen his entire reverse engineering life - the <code>Low Stub</code>.
 The <code>Low Stub</code> is a tiny little piece of 16 bit code that still lives in 64 bit Windows and it&rsquo;s used in two cases:</p>
 <ol>
 <li>When you&rsquo;re booting up your processors, it starts in 16 bit Real Mode, moves to 32 bit Protected Mode by the code in <code>Low Stub</code> and then 64 bit Long Mode.</li>
