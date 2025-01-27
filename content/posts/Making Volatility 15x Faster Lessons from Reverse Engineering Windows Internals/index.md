@@ -172,7 +172,7 @@ The implemented guard statements are similar to those in ```Memprocfs``` except 
     PROCESSOR_START_BLOCK->CompletionFlag = 0x1, of type ULONG
 
 2. Compare previously observed valid page table address that's stored in ```vlayer._initial_entry``` with ```PROCESSOR_START_BLOCK->ProcessorState->SpecialRegisters->Cr3``` which was observed to be an invalid page address, so add 1 (to make it valid too).
-3. ```PROCESSOR_START_BLOCK->LmTarget & 0x3``` should be 0, meaning the page entry for the kernel entry should be invalid(1st bit of address) and not readable/writable(2nd bit of address).
+3. ```PROCESSOR_START_BLOCK->LmTarget & 0x3``` should be 0 - to discard addresses that aren't aligned on a boundary of 4 bytes that valid kernel code typically use.
 
 ## Closing Thoughts
 Hope you enjoyed reading this as much as I enjoyed implementing it and the community will benefit from this contribution.
