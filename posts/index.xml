@@ -171,7 +171,7 @@ PROCESSOR_START_BLOCK-&gt;CompletionFlag = 0x1, of type ULONG</p>
 <p>Compare previously observed valid page table address that&rsquo;s stored in <code>vlayer._initial_entry</code> with <code>PROCESSOR_START_BLOCK-&gt;ProcessorState-&gt;SpecialRegisters-&gt;Cr3</code> which was observed to be an invalid page address, so add 1 (to make it valid too).</p>
 </li>
 <li>
-<p><code>PROCESSOR_START_BLOCK-&gt;LmTarget &amp; 0x3</code> should be 0, meaning the page entry for the kernel entry should be invalid(1st bit of address) and not readable/writable(2nd bit of address).</p>
+<p><code>PROCESSOR_START_BLOCK-&gt;LmTarget &amp; 0x3</code> should be 0 - to discard addresses that aren&rsquo;t aligned on a boundary of 4 bytes that valid kernel code typically use.</p>
 </li>
 </ol>
 <h2 id="closing-thoughts">Closing Thoughts</h2>
