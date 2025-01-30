@@ -169,9 +169,14 @@ void print_diff(ULONG64 field_address, ULONG64 base_address) {
     printf("%d:%x\n", field_address - base_address, field_address - base_address);
 }
 ```
-I've put all the constant offsets and signatures well documented [here][8].
-You can see the implementation of ```method_low_stub_offset``` and the explanation about the guard checks in the comments [here][11].
-The last check is not explained there. ```PROCESSOR_START_BLOCK->LmTarget & 0x3``` should be 0 - to discard addresses that aren't aligned on a boundary of 4 bytes that valid kernel code typically use.
+
+All constant offsets and signatures are well documented [here][8]. You can see the final implementation of ```method_low_stub_offset```(along with detailed code comments) in my [Volatility fork][11]. One minor addition is a final check that ```PROCESSOR_START_BLOCK->LmTarget & 0x3 == 0```, ensuring proper alignment on 4-byte boundaries that kernel code typically uses.
+
+
+## A Python Reimplementation (Rampy)
+
+For those who want a lightweight educational demo, I also [reimplemented Memprocfs’s process list extraction logic in Python][3]. I call this project Rampy. It recreates the key steps—scanning the Low Stub, extracting the kernel base, and enumerating _EPROCESS structures—but in a minimal, proof-of-concept form. Please note: Rampy is strictly for learning purposes and should not be used in production.
+
 
 ## Closing Thoughts
 Hope you enjoyed reading this as much as I enjoyed implementing it and the community will benefit from this contribution.
