@@ -42,7 +42,7 @@ especially during time-sensitive Incident Response tasks.
 
 ### What is KDBG?
 KDBG is an internal Windows kernel structure (often recognized by the signature 
-b'KDBG' in KDDEBUGGER_DATA64->OwnerTag). It lists running processes, loaded kernel modules, and Windows version info. Volatility normally scans the entire 
+**b'KDBG'** in ```KDDEBUGGER_DATA64->OwnerTag```). It lists running processes, loaded kernel modules, and Windows version info. Volatility normally scans the entire 
 memory image looking for this signature to find the kernel base, which can slow down analysis for large 
 RAM captures. For more on KDBG, see [this][0] or [this][1].
 
