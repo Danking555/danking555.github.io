@@ -6,60 +6,71 @@ draft: false
 ---
 
 ## Quick TL;DR
-By locating the kernel base address from ```PROCESSOR_START_BLOCK``` rather than scanning for ```KDBG```, I reduced Volatility's analysis time from **~15 seconds to about a second** on a 32GB RAM sample.\
-[See the code that was merged into Volatility][0].
+By using [PROCESSOR_START_BLOCK](#what-is-processor_start_block) instead of 
+[KDBG](#what-is-kdbg) to locate the Windows kernel base, I reduced Volatility’s 
+analysis time from ~15 seconds to about 1 second on a 32GB RAM sample.
+[See the merged code in Volatility][2].  
 
-Important: This method works only on x64 systems with no virtualization. Otherwise, we gracefully fall back to ```KDBG``` scanning.
-## Introduction and summary
-Volatility and Memprocfs are two tools for Memory Forensics, but they're implemented differently.
-I noticed that Memprocfs parses the RAM file almost instantaneously while Volatility takes longer to analyse the file. 
-So, I've conducted a test:
-1. I've extracted the RAM from my 32GB system using Winpmem.
-2. I've ran the pslist plugin of Volatility3 twice and started a timer each time.
-    * The first time took __51 seconds__ - the download of ntoskrnl symbol files took time.
-    * The second time took __15 seconds__. 
-3. I've ran Memprocfs on the same RAM file, entered the folder that show the processes list. The process list showed up immediately-after __about a second__.
+*Note*: This method works only on x64 systems with no virtualization. Otherwise, Volatility gracefully falls back to KDBG scanning.
 
-During Incident Response fast processing times of artifacts is crucial. Therefore, I decided to Reverse Engineer the tools to understand how they work and how I can improve Volatility analysis speed. 
+---
 
-At first, I assumed that Memprocfs is faster because it's built in C, meanwhile Volatility is built in Python.
-However, during the Reverse Engineering process I learned the algorithm used by Memprocfs and implemented it inside Volatility.
-After the changes I've made, I've conducted a similar test on the same aforementioned 32GB RAM file.
-1. The first time took __32 seconds__ - all symbols of ntoskrnl were downloaded.
-2. The second time took __about a second__. 
+## Introduction
+Volatility and Memprocfs are both popular memory forensics tools, but they work 
+differently under the hood. Volatility traditionally scans for a structure 
+called [KDBG](#what-is-kdbg) (Kernel Debugger Block), which can be time-consuming 
+for large memory captures. Meanwhile, Memprocfs uses the undocumented 
+[PROCESSOR_START_BLOCK](#what-is-processor_start_block) approach, which is 
+significantly faster on x64 systems with no virtualization.
 
-The new algorithm is based of an undocumented structure called ```PROCESSOR_START_BLOCK``` that exists only on x64 bit systems with no virtualization and no emulation.  
-Additionally, it exists in the first **1MB** of physical memory and has a well defined signature.
-On the other hand, the previous algorithm was based on heuristics of scanning for the ```KDBG``` structure, not necessarily existing at the beginning of the RAM file.
-with my new implementation, if Volatility is running against memory from x32 machine, a virtual machine or emulated machine, the algorithm will gracefully fall to the ```KDBG``` method.
-You can see the changes I've made in the [merged PR inside Volatility][0].
-During the Reverse Engineering process I've decided to learn and understand how the algorithm works by [reimplementing the process list extraction in Python][1]. 
-It is only for my learning purposes and **should not** be used in production!
-However, you can benefit from the newly implemented feature inside Volatility! :)
+### My Test Results
+1. *Volatility3 (Baseline)*  
+   - First run (downloading ntoskrnl symbols): ~51 seconds  
+   - Second run: ~15 seconds  
 
-[0]: <https://github.com/volatilityfoundation/volatility3/pull/1566>
-[1]: <https://github.com/Danking555/Rampy>
+2. *Memprocfs*  
+   - Immediate parsing (~1 second)
+
+3. *Modified Volatility3* (incorporating the PROCESSOR_START_BLOCK approach)  
+   - First run (symbol download): ~32 seconds  
+   - Second run: ~1 second
+
+These tests underscore how crucial it is to detect the kernel base efficiently, 
+especially during time-sensitive Incident Response tasks.
+
+---
+
+### What is KDBG?
+KDBG is an internal Windows kernel structure (often recognized by the signature 
+b'KDBG' in KDDEBUGGER_DATA64->OwnerTag). It lists running processes, loaded kernel modules, and Windows version info. Volatility normally scans the entire 
+memory image looking for this signature to find the kernel base, which can slow down analysis for large 
+RAM captures. For more on KDBG, see [this][0] or [this][1].
+
+---
+
+### What is PROCESSOR_START_BLOCK?
+PROCESSOR_START_BLOCK is an undocumented structure stored in the 
+[Low Stub](#what-is-the-low-stub) (a tiny 16-bit code segment in 64-bit Windows). Among its fields is 
+[Cr3][9], which stores the base address of the page tables, which are essential for virtual-to-physical address translation in Windows. By scanning the first 1MB of physical memory 
+for this structure, we can quickly find the kernel base without a full memory scan.
+
+---
+
 
 ## Technical overview
 **During the debug process, I noticed that the _```"KDBG"```_ scan takes most of the time.**
 How do I know that? Let's start the Reverse Engineering process.
 ### Volatility3 Reverse Engineering
-To begin analysing the memory we need to get it first. What I like to do is to run [```Memprocfs```][2] using the command line ```memprocfs -device pmem``` which mounts a new Virtual File System as drive ```M:```, having the RAM file in ```M:\memory.pmem```. 
-That way, I'll be able to consult the information from live memory parsed by ```memprocfs```.
-So to test ```Volatility3``` I specified the following command line in the ```Pycharm``` debugger: ```python vol.py -f M:\memory.pmem windows.pslist.PsList```.
-After running, a lot of debugging prints started to show up in the console, indicating that the specified memory file is scanned, and it took a lot of time. 
-So, I've decided to understand what is the function that is responsible for the scan by sending an interrupt ```Ctrl+C``` that will make the python console print the call stack. 
-And indeed, you can see in the following snippet that the code is "stuck" in ```data = self._file.read(length)```. 
+To begin analyzing the memory, we need to get it first. What I prefer running [```Memprocfs```][4] using the command line ```memprocfs -device pmem``` which mounts a new Virtual File System as drive ```M:```, having the RAM file in ```M:\memory.pmem```. 
+This lets me compare **live** memory parsing done by Memprocfs and by Volatility.
+When I tested ```Volatility3``` by running: ```python vol.py -f M:\memory.pmem windows.pslist.PsList``` I saw numerous debug prints, and the scan took quite a while. Interrupting the process with ```Ctrl+C``` showed the functions call stack, "stuck" in the following function call: ```data = self._file.read(length)```. 
 
 
 ![](images/1determine_scan_blocker.png)
 
-[2]: <https://github.com/ufrisk/MemProcFS>
 
+Following the call stack, ```self.determine_valid_kernel``` eventually calls ```method_kdbg_offset(...)``` - the KDBG-based scan.
 
-Following the call stack in the snippet, we see that a function that's called ```self.determine_valid_kernel``` calls to ```valid_kernel = method(self, context, vlayer, progress_callback)``` which eventually calls ```method_kdbg_offset```.
-
-Let's dig in. The aforementioned function ```"determine_valid_kernel"``` iterates over a list of methods that try to detect "a valid kernel" (assigned to variable ```valid_kernel```).
 ```python
     valid_kernel: Optional[ValidKernelType] = None
         for virtual_layer_name in potential_layers:
@@ -84,10 +95,11 @@ Let's dig in. The aforementioned function ```"determine_valid_kernel"``` iterate
     ]
 ```
 
-So if, for example we implement our own method to populate the variable ```valid_kernel```, ```method_kdbg_offset``` won't be called and the whole process should be much faster. 
+If we implement our own method (e.g., ```method_low_stub_offset```) before ```method_kdbg_offset``` in that list, we can skip the slower KDBG scan on supported systems.
 
-Wait, but wait, what should ```"valid_kernel"``` structure contain?
+But wait, what should ```"valid_kernel"``` structure contain?
 
+#### Volatility scan implementation
 If we continue to analyze the code stack and the code statically we'll see that ```determine_valid_kernel``` calls to ```method_kdbg_offset``` which calls to ```_method_offset(context, vlayer, b'KDBG', 8, progress_callback)``` that essentialy:
 1. Scans for ```b'KDBG'``` bytes (```_KDDEBUGGER_DATA64->OwnerTag```) - a process which takes a lot of time.
 2. Determines the kernel base from the structure by reading the field ```_KDDEBUGGER_DATA64->KernBase```.
@@ -96,86 +108,87 @@ If we continue to analyze the code stack and the code statically we'll see that 
 In the snippet below you can see the contents of the ```valid_kernel``` variable after it's populated.
 In a nutshell it includes:
 1. the kernel base offset in virtual memory. 
-2. The name of the pdb file ```ntkrnlmp.pdb``` for the specific kernel version.
+2. The name of the pdb file ```ntkrnlmp.pdb``` for the specific kernel version ([here's pdb explanation](#what-is-pdb)).
 3. The offset of the aformentioned name.
 4. The GUID that's used to download the pdb file.
 
 ![](images/2valid_kernel.png)
 
-So now we know what is the main "time blocker" and how theoretically we can make the program run faster.
-We should find the kernel base address and pass it to ```check_kernel_offset``` which initializes the variable ```valid_kernel```.
-We are ready to deep dive into how Memprocfs extracts the kernel base offset.
+---
+
+#### What is pdb???
+
+A PDB (Program Database) file contains debugging symbols for Windows executables (like ntoskrnl) that describe offsets of classes, functions, fields, global variables, etc. Volatility uses these symbols to properly interpret kernel data structures. Each PDB has a GUID (Globally Unique Identifier) that ensures you’re downloading the exact symbol file corresponding to that specific kernel build—avoiding mismatches that could break analysis. [For more information][12].
+
+---
+
+
 
 ### Memprocfs Reverse Engineering
-Before we list the operations that Memprocfs does to find the relevant data about the kernel, let's explain some theory.
-Memprocfs relies on "the most undocumented structure" that Alex Ionescu says ([in his talk][4]) that he has seen his entire reverse engineering life - the ```Low Stub```.
-The ```Low Stub``` is a tiny little piece of 16 bit code that still lives in 64 bit Windows and it's used in two cases:
-1. When you're booting up your processors, it starts in 16 bit Real Mode, moves to 32 bit Protected Mode by the code in ```Low Stub``` and then 64 bit Long Mode.
-2. When machine returns from sleep, it starts in 16 bit Real Mode first. The ```Low Stub``` handles the transition to Protected mode, etc..
+Before a deep dive into Memprocfs we must know some theory.
+### What is the Low Stub?
+Memprocfs relies on "the most undocumented structure" that Alex Ionescu ([video][5]; min 43, [slides][6]; slides-46-49) says he's ever seen - the ```Low Stub```. 
+The ```Low Stub``` is a tiny little piece of 16 bit code that still lives in 64 bit Windows used in two cases:
+1. Booting processors from 16-bit Real Mode -> 32-bit Protected Mode -> 64-bit Long Mode.
+2. Waking from sleep (which also starts in Real Mode).
 
-Because of the allocation policies on modern hardware, the ```Low Stub``` is going to be at 0x1000 most of the times. 
-On some PIC systems with a setting "Discard Low Memory" in the BIOS disabled, the ```Low Stub``` won't be at address 0x1000, but rather 0x2000, 0x3000, etc..
-The ```Low Stub``` is not only code, but actually the ```PROCESSOR_START_BLOCK``` structure, which has alot of fields, one of them called ```ProcessorState``` of type ```KPROCESSOR_STATE```, which has Symbols and highly documented.
-The exciting news is the field ```Cr3``` inside ```KPROCESSOR_STATE```, which holds the address of the ```DTB (Directory Table Base)``` AKA, the page tables that can be used to translate virtual addresses to physical addresses.
-* For more information, here's [the talk by Alex Ionescu][4], start at 43:36 and [here are the slides][5], slides 46-49.
+Normally, the Low Stub is at physical address 0x1000. On some systems where "Discard Low Memory" is disabled in BIOS, it may appear at 0x2000, 0x3000, etc. Inside the Low Stub is ```PROCESSOR_START_BLOCK```, whose Cr3 fields references the system's page tables.
 
-[4]: <https://www.youtube.com/watch?v=_ShCSth6dWM>
-[5]: <http://publications.alex-ionescu.com/Recon/ReconBru%202017%20-%20Getting%20Physical%20with%20USB%20Type-C,%20Windows%2010%20RAM%20Forensics%20and%20UEFI%20Attacks.pdf>
+* For more information about the structures follow [this link to Github][7].
 
-* For more information about the structures mentioned above see the following reference that seems to be [a leak of Windows NT][6].
-
-[6]: <https://github.com/mic101/windows/blob/master/WRK-v1.2/base/ntos/inc/amd64.h#L3334>
 ![](images/3cr3.png)
 ![](images/4processor_start_block.png)
 
-**So basically the process of locating the kernel base and extracting the processes list in Memprocfs goes like this:**
-1. Iterate the first 1MB of physical memory, starting from the second page (0x1000).
-2. In each iteration, after some performed guard checks (that I document in my code), use the ```PROCESSOR_START_BLOCK``` fields offsets to extract relevant data:
-3. read the value at offset 0xa0, locating cr3 (pointing at the DTB/PML4).
-4. Additionally, in each iteration, read the value at offset 0x70, locating an address we'll call "kernel_hint" which is an approximate location of the Kernel base.
-5. Scans for the location of ntoskrnl PE in 32mb address range beggining from "kernel_hint", scanning in 2MB chunks.
-After the scan is finished, it has the **offset of the kernel base**.\
- But for those of you who are curious, here's the process list location and initialization process:
-6. Extract the address of the exported function ```"PsInitialSystemProcess"``` from the kernel image in memory.
-7. The exported function contains the location of the first _```"_EPROCESS"```_ object.
-8. Iterate over the list, applying fuzzing mechanisms to understand the offsets of fields even without symbols.
+#### Memprocfs scan implementation
+Memprocfs’s algorithm for locating the kernel base and enumerating processes is:
+1. Iterate the first 1MB of physical memory (starting from 0x1000).
+2. Identify PROCESSOR_START_BLOCK by specific signatures and fields.
+3. Read the _Cr3_ (register pointing at the page tables) at offset 0xa0.
+4. Read the “kernel_hint” at offset 0x70, then search a 32MB range for the actual ntoskrnl PE.
+5. Once found, retrieve ```PsInitialSystemProcess``` exported functionn.
+6. This exported function holds a pointer to the first [```_EPROCESS```][10] object, marking the “system process.”
+7. Iterate the linked list of _EPROCESS structures to discover all processes.
 
-In the snippet below, which is taken from ```Memprocfs```, you can see the loop that iterates the first 1MB of physical memory, starting from the second page (0x1000):
+---
+
+#### What is _EPROCESS?
+
+_EPROCESS is the Windows Executive Process data structure, containing key information about each process (e.g., process ID, handle table, memory layout, etc.). Memory forensics tools like Memprocfs or Volatility read these structures to list running processes and extract further process-specific data.
+
+---
+
+Below is a snippet from Memprocfs showing how it scans the low 1MB:
 
 ![](images/5memprocfs_find_low_stub.png)
 
-So now that we know the algorithm of Memprocfs, let's implement our own function.\
-Let's call it ```method_low_stub_offset``` and put it in the head of the list, the kernel image base detection should be much faster. And, it should not get to the function ```method_kdbg_offset``` which blocks, because it scans for the ```KDBG``` bytes.
-The new method should return a ```"valid_kernel"``` structure.
-
-So essentialy, our new method will try to locate the kernel base via x64 Low Stub in lower 1MB starting from second page (4KB).
-If "Discard Low Memory" setting is disabled in BIOS, the Low Stub may be at the third/fourth or further pages.
-During the scan a few guard checks are implemented. The code is well documented so I'll not repeat, but note how I validated the offsets of the fields. I've replicated the structures described in [this documentation of ```_PROCESSOR_START_BLOCK```][6] and wrote the following code that prints the offset of the given field within the structure:
+### Implementing ```method_low_stub_offset```
+By replicating Memprocfs’s approach—searching the Low Stub first—we can avoid scanning the entire RAM for KDBG. This is especially beneficial on x64 systems without virtualization. For x86 or virtualized systems, Volatility falls back to the original KDBG logic automatically.
+During the scan a few guard checks are implemented, verifying signatures and offsets. Before implementing the checks I've replicated the structures described in [this documentation of ```_PROCESSOR_START_BLOCK```][7] and wrote the following code that prints the offset of the given field within the structure:
 ```c
 void print_diff(ULONG64 field_address, ULONG64 base_address) {
     printf("%d:%x\n", field_address - base_address, field_address - base_address);
 }
 ```
-
-I've put all the constant offsets and signatures well documented [here][7].
-
-[7]: <https://github.com/volatilityfoundation/volatility3/blob/develop/volatility3/framework/constants/windows/__init__.py> 
-
-Basically the algorithm as the same as previously mentioned.
-The implemented guard statements are similar to those in ```Memprocfs``` except the third:
-1. The first 8 bytes of PROCESSOR_START_BLOCK & 0xFFFFFFFFFFFF00FF expected signature for validation is checked: 0x00000001000600E9. It's constructed from:
-    a. The block starts with a jmp instruction to the end of the block:
-    *   PROCESSOR_START_BLOCK->Jmp->OpCode = 0xe9 (jmp opcode), of type UCHAR
-    *   PROCESSOR_START_BLOCK->Jmp->Offset = 0x6XX, of type USHORT
-
-    b. A Completion flag is set to non-zero when the target processor has started:
-    PROCESSOR_START_BLOCK->CompletionFlag = 0x1, of type ULONG
-
-2. Compare previously observed valid page table address that's stored in ```vlayer._initial_entry``` with ```PROCESSOR_START_BLOCK->ProcessorState->SpecialRegisters->Cr3``` which was observed to be an invalid page address, so add 1 (to make it valid too).
-3. ```PROCESSOR_START_BLOCK->LmTarget & 0x3``` should be 0 - to discard addresses that aren't aligned on a boundary of 4 bytes that valid kernel code typically use.
+I've put all the constant offsets and signatures well documented [here][8].
+You can see the implementation of ```method_low_stub_offset``` and the explanation about the guard checks in the comments [here][11].
+The last check is not explained there. ```PROCESSOR_START_BLOCK->LmTarget & 0x3``` should be 0 - to discard addresses that aren't aligned on a boundary of 4 bytes that valid kernel code typically use.
 
 ## Closing Thoughts
 Hope you enjoyed reading this as much as I enjoyed implementing it and the community will benefit from this contribution.
 Special thanks to the creators and maintainers of the Volatility project and to Ulf Frisk, the creator of Memprocfs.\
 Always ask yourself how you can make things run better and be curious how things work, that's how I learned a lot from this work.\
 If you have any questions feel free to reach me at ```danieldavidov555@proton.me```.
+
+[0]: <https://alpbatursahin.medium.com/investigating-memory-forensic-processes-dlls-consoles-process-memory-and-networking-7277689a09b7#:~:text=The%20KDBG%20is%20a%20structure,processes%20and%20loaded%20kernel%20modules.>
+[1]: <https://scudette.blogspot.com/2012/11/finding-kernel-debugger-block.html>
+[2]: <https://github.com/volatilityfoundation/volatility3/pull/1566>
+[3]: <https://github.com/Danking555/Rampy>
+[4]: <https://github.com/ufrisk/MemProcFS>
+[5]: <https://www.youtube.com/watch?v=_ShCSth6dWM>
+[6]: <http://publications.alex-ionescu.com/Recon/ReconBru%202017%20-%20Getting%20Physical%20with%20USB%20Type-C,%20Windows%2010%20RAM%20Forensics%20and%20UEFI%20Attacks.pdf>
+[7]: <https://github.com/mic101/windows/blob/master/WRK-v1.2/base/ntos/inc/amd64.h#L3334>
+[8]: <https://github.com/volatilityfoundation/volatility3/blob/develop/volatility3/framework/constants/windows/__init__.py> 
+[9]: <https://www.quora.com/What-is-the-purpose-of-control-register-3-CR3>
+[10]: <https://www.geoffchappell.com/studies/windows/km/ntoskrnl/inc/ntos/ps/eprocess/index.htm>
+[11]: <https://github.com/Danking555/volatility3/blob/develop/volatility3/framework/automagic/pdbscan.py>
+[12]: <https://learn.microsoft.com/en-us/windows-hardware/drivers/debugger/symbols-and-symbol-files>
