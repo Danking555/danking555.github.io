@@ -4,7 +4,7 @@
     <title>Posts on Area51</title>
     <link>https://danking555.github.io/posts/</link>
     <description>Recent content in Posts on Area51</description>
-    <generator>Hugo -- 0.142.0</generator>
+    <generator>Hugo -- 0.143.0</generator>
     <language>en-us</language>
     <lastBuildDate>Sun, 26 Jan 2025 00:00:00 +0000</lastBuildDate>
     <atom:link href="https://danking555.github.io/posts/index.xml" rel="self" type="application/rss+xml" />
@@ -15,13 +15,13 @@
       <guid>https://danking555.github.io/posts/making-volatility-15x-faster-lessons-from-reverse-engineering-windows-internals/</guid>
       <description>&lt;h2 id=&#34;quick-tldr&#34;&gt;Quick TL;DR&lt;/h2&gt;
 &lt;p&gt;By using &lt;a href=&#34;#what-is-processor_start_block&#34;&gt;PROCESSOR_START_BLOCK&lt;/a&gt; instead of
-&lt;a href=&#34;#what-is-kdbg&#34;&gt;KDBG&lt;/a&gt; to locate the Windows kernel base, I reduced Volatility’s
+&lt;a href=&#34;#what-is-kdbg&#34;&gt;KDBG&lt;/a&gt; to locate the Windows kernel base, I reduced &lt;a href=&#34;https://github.com/volatilityfoundation/volatility3&#34;&gt;Volatility’s&lt;/a&gt;
 analysis time from ~15 seconds to about 1 second on a 32GB RAM sample.
 &lt;a href=&#34;https://github.com/volatilityfoundation/volatility3/pull/1566&#34;&gt;See the merged code in Volatility&lt;/a&gt;.&lt;/p&gt;
 &lt;p&gt;&lt;em&gt;Note&lt;/em&gt;: This method works only on x64 systems with no virtualization. Otherwise, Volatility gracefully falls back to KDBG scanning.&lt;/p&gt;
 &lt;hr&gt;
 &lt;h2 id=&#34;introduction&#34;&gt;Introduction&lt;/h2&gt;
-&lt;p&gt;Volatility and Memprocfs are both popular memory forensics tools, but they work
+&lt;p&gt;Volatility and &lt;a href=&#34;https://github.com/ufrisk/MemProcFS&#34;&gt;Memprocfs&lt;/a&gt; are both popular memory forensics tools, but they work
 differently under the hood. Volatility traditionally scans for a structure
 called &lt;a href=&#34;#what-is-kdbg&#34;&gt;KDBG&lt;/a&gt; (Kernel Debugger Block), which can be time-consuming
 for large memory captures. Meanwhile, Memprocfs uses the undocumented
@@ -29,13 +29,13 @@ for large memory captures. Meanwhile, Memprocfs uses the undocumented
 significantly faster on x64 systems with no virtualization.&lt;/p&gt;</description>
       <content:encoded><![CDATA[<h2 id="quick-tldr">Quick TL;DR</h2>
 <p>By using <a href="#what-is-processor_start_block">PROCESSOR_START_BLOCK</a> instead of
-<a href="#what-is-kdbg">KDBG</a> to locate the Windows kernel base, I reduced Volatility’s
+<a href="#what-is-kdbg">KDBG</a> to locate the Windows kernel base, I reduced <a href="https://github.com/volatilityfoundation/volatility3">Volatility’s</a>
 analysis time from ~15 seconds to about 1 second on a 32GB RAM sample.
 <a href="https://github.com/volatilityfoundation/volatility3/pull/1566">See the merged code in Volatility</a>.</p>
 <p><em>Note</em>: This method works only on x64 systems with no virtualization. Otherwise, Volatility gracefully falls back to KDBG scanning.</p>
 <hr>
 <h2 id="introduction">Introduction</h2>
-<p>Volatility and Memprocfs are both popular memory forensics tools, but they work
+<p>Volatility and <a href="https://github.com/ufrisk/MemProcFS">Memprocfs</a> are both popular memory forensics tools, but they work
 differently under the hood. Volatility traditionally scans for a structure
 called <a href="#what-is-kdbg">KDBG</a> (Kernel Debugger Block), which can be time-consuming
 for large memory captures. Meanwhile, Memprocfs uses the undocumented
