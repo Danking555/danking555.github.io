@@ -7,7 +7,7 @@ draft: false
 
 ## Quick TL;DR
 By using [PROCESSOR_START_BLOCK](#what-is-processor_start_block) instead of 
-[KDBG](#what-is-kdbg) to locate the Windows kernel base, I reduced Volatility’s 
+[KDBG](#what-is-kdbg) to locate the Windows kernel base, I reduced [Volatility’s][13] 
 analysis time from ~15 seconds to about 1 second on a 32GB RAM sample.
 [See the merged code in Volatility][2].  
 
@@ -16,7 +16,7 @@ analysis time from ~15 seconds to about 1 second on a 32GB RAM sample.
 ---
 
 ## Introduction
-Volatility and Memprocfs are both popular memory forensics tools, but they work 
+Volatility and [Memprocfs][14] are both popular memory forensics tools, but they work 
 differently under the hood. Volatility traditionally scans for a structure 
 called [KDBG](#what-is-kdbg) (Kernel Debugger Block), which can be time-consuming 
 for large memory captures. Meanwhile, Memprocfs uses the undocumented 
@@ -197,3 +197,5 @@ If you have any questions feel free to reach me at ```danieldavidov555@proton.me
 [10]: <https://www.geoffchappell.com/studies/windows/km/ntoskrnl/inc/ntos/ps/eprocess/index.htm>
 [11]: <https://github.com/Danking555/volatility3/blob/develop/volatility3/framework/automagic/pdbscan.py>
 [12]: <https://learn.microsoft.com/en-us/windows-hardware/drivers/debugger/symbols-and-symbol-files>
+[13]: <https://github.com/volatilityfoundation/volatility3>
+[14]: <https://github.com/ufrisk/MemProcFS>
